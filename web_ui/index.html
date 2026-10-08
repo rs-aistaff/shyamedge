@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShyamEdge Pro | Institutional Options Trading Terminal</title>
+    <meta name="description" content="Next-generation institutional quant options trading terminal for NSE/BSE index derivatives with real-time VWAP, EMA, Trailing Stop Ratchet, and statutory tax modeling.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- Top Institutional Ticker Tape & Status Bar -->
+    <header class="top-nav" id="top-nav-bar">
+        <div class="nav-left">
+            <div class="brand-badge">
+                <span class="brand-icon">⚡</span>
+                <div class="brand-text">
+                    <span class="brand-title">SHYAMEDGE PRO</span>
+                    <span class="brand-subtitle">INSTITUTIONAL QUANT DESK</span>
+                </div>
+            </div>
+            <div class="session-pill" id="session-status-pill">
+                <span class="radar-dot"></span>
+                <span id="session-status-text">INITIALIZING...</span>
+            </div>
+        </div>
+
+        <!-- Live Exchange Tickers -->
+        <div class="ticker-tape" id="ticker-tape">
+            <div class="ticker-item" id="ticker-nifty">
+                <span class="ticker-sym">NIFTY 50</span>
+                <span class="ticker-val font-mono" id="nifty-spot">24,538.20</span>
+                <span class="ticker-chg font-mono badge-pos" id="nifty-chg">+142.30 (+0.58%)</span>
+            </div>
+            <div class="ticker-item" id="ticker-sensex">
+                <span class="ticker-sym">SENSEX</span>
+                <span class="ticker-val font-mono" id="sensex-spot">81,142.50</span>
+                <span class="ticker-chg font-mono badge-pos" id="sensex-chg">+412.50 (+0.51%)</span>
+            </div>
+            <div class="ticker-item" id="ticker-banknifty">
+                <span class="ticker-sym">BANK NIFTY</span>
+                <span class="ticker-val font-mono" id="banknifty-spot">51,890.00</span>
+                <span class="ticker-chg font-mono badge-pos" id="banknifty-chg">+280.10 (+0.54%)</span>
+            </div>
+            <div class="ticker-item" id="ticker-vix">
+                <span class="ticker-sym">INDIA VIX</span>
+                <span class="ticker-val font-mono" id="vix-spot">13.25</span>
+                <span class="ticker-chg font-mono badge-neg" id="vix-chg">-0.32 (-2.36%)</span>
+            </div>
+        </div>
+
+        <div class="nav-right">
+            <div class="clock-display font-mono" id="ist-clock">--:--:-- IST</div>
+            <button class="btn-refresh" id="btn-manual-refresh" title="Force Refresh">🔄</button>
+        </div>
+    </header>
+
+    <!-- Main Workspace Container -->
+    <div class="workspace-layout">
+        
+        <!-- Left Trading Dock / Sidebar Options -->
+        <aside class="sidebar-dock" id="sidebar-dock">
+            <div class="dock-header">
+                <h3>DESK CONTROLS</h3>
+                <span class="latency-badge" id="latency-tag">⚡ 4ms</span>
+            </div>
+
+            <!-- 1. Underlying Selector -->
+            <div class="dock-section">
+                <label class="dock-label">ACTIVE UNDERLYING</label>
+                <div class="segmented-control" id="underlying-selector">
+                    <button class="seg-btn active" data-symbol="NIFTY50" id="btn-sel-nifty">
+                        <span class="seg-title">NIFTY 50</span>
+                        <span class="seg-sub">Lot: 75</span>
+                    </button>
+                    <button class="seg-btn" data-symbol="SENSEX" id="btn-sel-sensex">
+                        <span class="seg-title">SENSEX</span>
+                        <span class="seg-sub">Lot: 20</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. Quick Order Ticket -->
+            <div class="dock-section order-ticket-card">
+                <div class="order-ticket-head">
+                    <span class="ticket-title">QUICK ORDER TICKET</span>
+                    <span class="ticket-tag">1-LOT FIXED</span>
+                </div>
+
+                <!-- Call / Put Selector -->
+                <div class="direction-toggle" id="direction-toggle">
+                    <button class="dir-btn active call-btn" id="btn-dir-ce" data-type="CE">BUY CE (CALL)</button>
+                    <button class="dir-btn put-btn" id="btn-dir-pe" data-type="PE">BUY PE (PUT)</button>
+                </div>
+
+                <!-- Strike Selector -->
+                <div class="input-group">
+                    <label class="input-label" for="strike-select">STRIKE SELECTION</label>
+                    <select class="styled-select font-mono" id="strike-select">
+                        <option value="24500" data-delta="0.50">24500 ATM (Δ 0.50)</option>
+                        <option value="24450" data-delta="0.60">24450 ITM-1 (Δ 0.60)</option>
+                        <option value="24400" data-delta="0.70">24400 ITM-2 (Δ 0.70)</option>
+                        <option value="24550" data-delta="0.40">24550 OTM-1 (Δ 0.40)</option>
+                    </select>
+                </div>
+
+                <!-- Order Calculations -->
+                <div class="ticket-calc font-mono">
+                    <div class="calc-row">
+                        <span>Contract Lot Size</span>
+                        <span id="ticket-lot-display">75 Qty</span>
+                    </div>
+                    <div class="calc-row">
+                        <span>Estimated Premium</span>
+                        <span id="ticket-premium-display">₹142.50</span>
+                    </div>
+                    <div class="calc-row">
+                        <span>Required Margin</span>
+                        <span id="ticket-margin-display" class="highlight-val">₹10,687.50</span>
+                    </div>
+                    <div class="calc-row">
+                        <span>Stop-Loss (-15%)</span>
+                        <span id="ticket-sl-display" class="color-neg">₹121.12</span>
+                    </div>
+                    <div class="calc-row">
+                        <span>Auto Target (+30%)</span>
+                        <span id="ticket-tgt-display" class="color-pos">₹185.25</span>
+                    </div>
+                </div>
+
+                <!-- Execute Button -->
+                <button class="btn-execute-order" id="btn-place-order">
+                    <span>⚡ EXECUTE PAPER ORDER</span>
+                </button>
+            </div>
+
+            <!-- 3. Risk Governance HUD -->
+            <div class="dock-section risk-card">
+                <div class="risk-head">
+                    <span class="risk-title">INSTITUTIONAL RISK BOUNDS</span>
+                    <span class="risk-status">STRICT</span>
+                </div>
+                <div class="risk-grid font-mono">
+                    <div class="risk-metric">
+                        <span class="r-label">Capital Base</span>
+                        <span class="r-val">₹30,000</span>
+                    </div>
+                    <div class="risk-metric">
+                        <span class="r-label">Max Risk/Trade</span>
+                        <span class="r-val color-amber">₹900 (3%)</span>
+                    </div>
+                    <div class="risk-metric">
+                        <span class="r-label">Daily Stop Cap</span>
+                        <span class="r-val color-neg">₹1,200 (4%)</span>
+                    </div>
+                    <div class="risk-metric">
+                        <span class="r-label">Target Ratchet</span>
+                        <span class="r-val color-pos">+30% Auto</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. Emergency Kill-Switch -->
+            <div class="dock-section">
+                <button class="btn-kill-switch" id="btn-kill-switch">
+                    <span>🛑 EMERGENCY KILL SWITCH</span>
+                </button>
+            </div>
+
+            <!-- 5. Database Maintenance -->
+            <div class="dock-section db-card">
+                <div class="db-head">
+                    <span>🧹 DATABASE MAINTENANCE</span>
+                </div>
+                <div class="db-actions">
+                    <button class="btn-db" id="btn-clear-pos" title="Close any dangling position">
+                        <span>🧹 Go Flat (Cash)</span>
+                    </button>
+                    <button class="btn-db" id="btn-sync-bench" title="Sync 73 verified benchmark trades">
+                        <span>🔄 Sync Bench</span>
+                    </button>
+                    <button class="btn-db btn-db-danger" id="btn-factory-reset" title="Wipe all tables">
+                        <span>🗑️ Zero Out</span>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace Stage -->
+        <main class="main-stage" id="main-stage">
+            
+            <!-- Page Title Header -->
+            <div class="stage-header">
+                <div>
+                    <h1 class="stage-title">QUANTITATIVE TRADING DESK</h1>
+                    <p class="stage-subtitle">Real-time options algorithmic execution engine with universal trailing stop ratchets & SEBI cost attribution.</p>
+                </div>
+                <div class="live-status-pill">
+                    <span class="pulse-indicator"></span>
+                    <span id="market-regime-label">REGIME: TREND FOLLOWING VOLATILE</span>
+                </div>
+            </div>
+
+            <!-- Top Executive KPI Strip (5 cards) -->
+            <section class="kpi-strip" id="kpi-strip" aria-label="Executive Performance KPIs">
+                <div class="kpi-card" id="kpi-equity-card">
+                    <div class="kpi-label">ACCOUNT EQUITY</div>
+                    <div class="kpi-val font-mono" id="kpi-account-equity">₹136,822.08</div>
+                    <div class="kpi-delta font-mono badge-pos" id="kpi-equity-delta">+356.1% on Capital</div>
+                </div>
+                <div class="kpi-card" id="kpi-net-card">
+                    <div class="kpi-label">REALIZED NET P&L</div>
+                    <div class="kpi-val font-mono" id="kpi-net-pnl">₹+106,822.08</div>
+                    <div class="kpi-delta font-mono badge-pos" id="kpi-win-rate">69.9% Win Rate</div>
+                </div>
+                <div class="kpi-card" id="kpi-mtm-card">
+                    <div class="kpi-label">RUNNING UNREALIZED MTM</div>
+                    <div class="kpi-val font-mono" id="kpi-running-mtm">₹0.00</div>
+                    <div class="kpi-delta font-mono" id="kpi-pos-status">FLAT CASH</div>
+                </div>
+                <div class="kpi-card" id="kpi-pf-card">
+                    <div class="kpi-label">PROFIT FACTOR</div>
+                    <div class="kpi-val font-mono" id="kpi-profit-factor">10.32</div>
+                    <div class="kpi-delta font-mono badge-pos">Target Benchmark > 2.0</div>
+                </div>
+                <div class="kpi-card" id="kpi-dd-card">
+                    <div class="kpi-label">MAX DRAWDOWN</div>
+                    <div class="kpi-val font-mono color-amber" id="kpi-max-drawdown">8.42%</div>
+                    <div class="kpi-delta font-mono badge-pos">< 9.7% Boundary</div>
+                </div>
+            </section>
+
+            <!-- Navigation Tab Bar -->
+            <nav class="tab-navigation" id="tab-nav" aria-label="Terminal Views">
+                <button class="tab-btn active" data-tab="tab-chart" id="nav-btn-chart">
+                    <span>📊 LIVE MARKET CHART & RUNNING POSITION</span>
+                </button>
+                <button class="tab-btn" data-tab="tab-journal" id="nav-btn-journal">
+                    <span>📅 DAY-BY-DAY TRADE JOURNAL</span>
+                </button>
+                <button class="tab-btn" data-tab="tab-matrix" id="nav-btn-matrix">
+                    <span>🎯 15 STRATEGIES ALPHA MATRIX</span>
+                </button>
+                <button class="tab-btn" data-tab="tab-equity" id="nav-btn-equity">
+                    <span>📈 EQUITY CURVE & RISK ANALYTICS</span>
+                </button>
+                <button class="tab-btn" data-tab="tab-rules" id="nav-btn-rules">
+                    <span>🛡️ RISK RULES & SEBI CHARGES</span>
+                </button>
+            </nav>
+
+            <!-- TAB 1: Live Market Chart & Running Position Desk -->
+            <div class="tab-pane active" id="tab-chart">
+                <div class="chart-position-grid">
+                    
+                    <!-- Left Financial Candlestick Chart -->
+                    <div class="chart-container-card">
+                        <div class="card-toolbar">
+                            <div class="toolbar-left">
+                                <span class="chart-title font-mono" id="chart-symbol-header">NIFTY 50 • 5M INTRADAY</span>
+                                <div class="timeframe-pills">
+                                    <button class="tf-btn" data-tf="1m">1m</button>
+                                    <button class="tf-btn" data-tf="3m">3m</button>
+                                    <button class="tf-btn active" data-tf="5m">5m</button>
+                                    <button class="tf-btn" data-tf="15m">15m</button>
+                                </div>
+                            </div>
+                            <div class="toolbar-legend">
+                                <span class="leg-item leg-vwap">● VWAP</span>
+                                <span class="leg-item leg-ema20">● 20 EMA</span>
+                                <span class="leg-item leg-ema50">● 50 EMA</span>
+                            </div>
+                        </div>
+                        <div id="plotly-candlestick-chart" class="chart-canvas"></div>
+                    </div>
+
+                    <!-- Right Active Position Desk -->
+                    <div class="position-desk-card" id="position-desk-panel">
+                        <div class="pos-card-head">
+                            <span class="pos-title">⚡ RUNNING POSITION & MTM</span>
+                            <span class="pos-badge" id="pos-status-badge">FLAT</span>
+                        </div>
+
+                        <div id="pos-active-view" class="pos-active-body hidden">
+                            <div class="pos-contract-row font-mono">
+                                <span class="pos-symbol-text" id="pos-symbol">NIFTY24500CE</span>
+                                <span class="pos-qty-pill" id="pos-qty">75 QTY (1 Lot)</span>
+                            </div>
+
+                            <div class="pos-mtm-block font-mono">
+                                <div class="mtm-label">LIVE UNREALIZED MTM</div>
+                                <div class="mtm-amount" id="pos-mtm-display">₹+2,450.00</div>
+                                <div class="mtm-pct" id="pos-return-display">+22.8%</div>
+                            </div>
+
+                            <!-- Progress Track to Target -->
+                            <div class="trailing-progress-box">
+                                <div class="prog-labels font-mono">
+                                    <span id="pos-sl-val">SL: ₹121.10</span>
+                                    <span id="pos-cur-val">CMP: ₹165.20</span>
+                                    <span id="pos-tgt-val">TGT: ₹185.25</span>
+                                </div>
+                                <div class="prog-track">
+                                    <div class="prog-fill" id="pos-progress-fill" style="width: 65%;"></div>
+                                </div>
+                                <div class="trailing-status-pill" id="pos-trailing-label">
+                                    🚀 Momentum Locked @ ₹158.40 (+16%)
+                                </div>
+                            </div>
+
+                            <!-- Price Grid -->
+                            <div class="pos-price-grid font-mono">
+                                <div class="price-cell">
+                                    <span class="cell-label">Entry Price</span>
+                                    <span class="cell-val" id="pos-entry-price">₹142.50</span>
+                                </div>
+                                <div class="price-cell">
+                                    <span class="cell-label">Current Price</span>
+                                    <span class="cell-val color-pos" id="pos-current-price">₹165.20</span>
+                                </div>
+                                <div class="price-cell">
+                                    <span class="cell-label">Delta (Δ)</span>
+                                    <span class="cell-val" id="pos-delta-val">0.52</span>
+                                </div>
+                                <div class="price-cell">
+                                    <span class="cell-label">Theta Decay</span>
+                                    <span class="cell-val color-amber" id="pos-theta-val">-₹18.40/d</span>
+                                </div>
+                            </div>
+
+                            <!-- Square-off button -->
+                            <button class="btn-square-off" id="btn-square-off-pos">
+                                <span>🛑 SQUARE OFF POSITION (MARKET)</span>
+                            </button>
+                        </div>
+
+                        <div id="pos-empty-view" class="pos-empty-body">
+                            <div class="empty-icon">🛡️</div>
+                            <h4>PORTFOLIO FLAT CASH</h4>
+                            <p>No active market risk. The quantitative alpha engines are actively scanning the 5m tape for institutional breakouts.</p>
+                            <div class="empty-quick-actions">
+                                <button class="btn-preset-buy" id="btn-quick-nifty-ce">⚡ Quick Buy NIFTY 24500 CE</button>
+                                <button class="btn-preset-buy" id="btn-quick-sensex-ce">⚡ Quick Buy SENSEX 81200 CE</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: Day-by-Day Trade Journal -->
+            <div class="tab-pane" id="tab-journal">
+                <div class="journal-controls-bar">
+                    <div class="journal-filter-pills" id="journal-filter-pills">
+                        <button class="j-btn active" data-filter="today" id="btn-journal-today">⭐ TODAY ONLY</button>
+                        <button class="j-btn" data-filter="all" id="btn-journal-all">📅 ALL DATES</button>
+                    </div>
+                    <div class="journal-date-picker">
+                        <label for="select-journal-date">Select Session:</label>
+                        <select class="styled-select font-mono" id="select-journal-date"></select>
+                    </div>
+                </div>
+
+                <!-- Daily Summary Strip -->
+                <div class="day-metrics-strip font-mono" id="day-metrics-strip">
+                    <div class="day-metric-box">
+                        <span class="dm-label">SESSION TRADES</span>
+                        <span class="dm-val" id="jm-trades">--</span>
+                    </div>
+                    <div class="day-metric-box">
+                        <span class="dm-label">GROSS P&L</span>
+                        <span class="dm-val" id="jm-gross">--</span>
+                    </div>
+                    <div class="day-metric-box">
+                        <span class="dm-label">STATUTORY TAXES & SLIP</span>
+                        <span class="dm-val color-amber" id="jm-drag">--</span>
+                    </div>
+                    <div class="day-metric-box">
+                        <span class="dm-label">NET REALIZED P&L</span>
+                        <span class="dm-val" id="jm-net">--</span>
+                    </div>
+                </div>
+
+                <!-- Trades Table -->
+                <div class="table-card">
+                    <div class="table-header-title">
+                        <h4 id="journal-table-title">EXECUTED TRADES LOG</h4>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="styled-table font-mono" id="journal-trades-table">
+                            <thead>
+                                <tr>
+                                    <th>Exit Time</th>
+                                    <th>Strategy</th>
+                                    <th>Underlying</th>
+                                    <th>Contract</th>
+                                    <th>Qty</th>
+                                    <th>Entry</th>
+                                    <th>Exit</th>
+                                    <th>Gross P&L</th>
+                                    <th>Charges</th>
+                                    <th>Net P&L</th>
+                                    <th>Return %</th>
+                                    <th>Exit Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody id="journal-table-body">
+                                <tr><td colspan="12" class="text-center">Loading trades...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Historical Daily Performance Waterfall Chart & Calendar -->
+                <div class="calendar-waterfall-grid">
+                    <div class="waterfall-card">
+                        <h4>DAILY REALIZED P&L WATERFALL (GREEN / RED)</h4>
+                        <div id="plotly-waterfall-chart" class="chart-canvas-small"></div>
+                    </div>
+                    <div class="calendar-card">
+                        <h4>HISTORICAL SESSION BREAKDOWN</h4>
+                        <div class="table-responsive">
+                            <table class="styled-table font-mono" id="daily-calendar-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Trades</th>
+                                        <th>Win/Loss</th>
+                                        <th>Win Rate</th>
+                                        <th>Net Realized P&L</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="daily-calendar-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: 15 Strategies Alpha Matrix -->
+            <div class="tab-pane" id="tab-matrix">
+                <div class="stage-section-head">
+                    <h3>15 QUANTITATIVE STRATEGIES ALPHA BENCHMARK</h3>
+                    <p>Side-by-side performance audit calibrated with SEBI 2025/2026 statutory taxes and 0.4% market slippage.</p>
+                </div>
+
+                <div class="table-card">
+                    <div class="table-responsive">
+                        <table class="styled-table font-mono" id="strategies-matrix-table">
+                            <thead>
+                                <tr>
+                                    <th>Strategy ID</th>
+                                    <th>Strategy Name</th>
+                                    <th>Type</th>
+                                    <th>Trades</th>
+                                    <th>W / L</th>
+                                    <th>Win Rate</th>
+                                    <th>Gross P&L</th>
+                                    <th>Taxes & Slip</th>
+                                    <th>Net P&L</th>
+                                    <th>Profit Factor</th>
+                                    <th>Expectancy</th>
+                                    <th>Edge Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="strategies-matrix-body">
+                                <tr><td colspan="12" class="text-center">Loading strategies...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="matrix-bottom-grid">
+                    <div class="m-chart-card">
+                        <h4>NET P&L ATTRIBUTION BY STRATEGY</h4>
+                        <div id="plotly-strategy-pnl-chart" class="chart-canvas-small"></div>
+                    </div>
+                    <div class="m-rulebook-card">
+                        <h4>STRATEGY RULEBOOK & SETUP INSPECTOR</h4>
+                        <div class="input-group">
+                            <label for="select-inspect-strat">Select Strategy to Inspect:</label>
+                            <select class="styled-select font-mono" id="select-inspect-strat"></select>
+                        </div>
+                        <div class="rulebook-details font-mono" id="inspect-strat-details"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 4: Equity Curve & Risk Analytics -->
+            <div class="tab-pane" id="tab-equity">
+                <div class="equity-grid">
+                    <div class="equity-chart-card">
+                        <h4>VIRTUAL PORTFOLIO EQUITY GROWTH & UNDERWATER DRAWDOWN</h4>
+                        <div id="plotly-equity-curve-chart" class="chart-canvas-large"></div>
+                    </div>
+                    <div class="equity-metrics-card">
+                        <h4>INSTITUTIONAL RISK AUDIT</h4>
+                        <div class="risk-audit-list font-mono" id="risk-audit-list">
+                            <div class="audit-item">
+                                <span class="a-label">Estimated Sharpe Ratio:</span>
+                                <span class="a-val color-pos">2.84</span>
+                            </div>
+                            <div class="audit-item">
+                                <span class="a-label">Portfolio Profit Factor:</span>
+                                <span class="a-val color-pos" id="audit-pf">10.32</span>
+                            </div>
+                            <div class="audit-item">
+                                <span class="a-label">Expectancy Per Trade:</span>
+                                <span class="a-val color-pos" id="audit-exp">₹+1,463.32</span>
+                            </div>
+                            <div class="audit-item">
+                                <span class="a-label">Maximum Portfolio Drawdown:</span>
+                                <span class="a-val color-amber" id="audit-dd">8.42% (&lt; 9.7% Cap)</span>
+                            </div>
+                            <div class="audit-item">
+                                <span class="a-label">Net Gain on Capital:</span>
+                                <span class="a-val color-pos" id="audit-gain">+356.1%</span>
+                            </div>
+                            <div class="audit-item">
+                                <span class="a-label">Average Win Size:</span>
+                                <span class="a-val color-pos" id="audit-avg-w">₹+2,317.00</span>
+                            </div>
+                            <div class="audit-item">
+                                <span class="a-label">Average Loss Size:</span>
+                                <span class="a-val color-neg" id="audit-avg-l">-₹512.00</span>
+                            </div>
+                            <div class="audit-item">
+                                <span class="a-label">Win / Loss Payoff Ratio:</span>
+                                <span class="a-val color-pos" id="audit-payoff">4.52x</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 5: Risk Rules & SEBI Charges -->
+            <div class="tab-pane" id="tab-rules">
+                <div class="stage-section-head">
+                    <h3>STATUTORY REGULATORY CHARGES & SLIPPAGE ARCHITECTURE</h3>
+                    <p>Every backtest trade and live paper execution accounts for SEBI deductions down to the paisa.</p>
+                </div>
+
+                <div class="table-card">
+                    <table class="styled-table font-mono">
+                        <thead>
+                            <tr>
+                                <th>Charge Component</th>
+                                <th>Official Rate / Formula</th>
+                                <th>Applied in ShyamEdge</th>
+                                <th>Impact Mode</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Securities Transaction Tax (STT)</td>
+                                <td>0.10% on Sell Turnover</td>
+                                <td><span class="badge-pos">Exact Deduction</span></td>
+                                <td>Direct P&L Drag</td>
+                            </tr>
+                            <tr>
+                                <td>Exchange Transaction Charges</td>
+                                <td>0.03503% on NSE Option Turnover</td>
+                                <td><span class="badge-pos">Exact Deduction</span></td>
+                                <td>Direct P&L Drag</td>
+                            </tr>
+                            <tr>
+                                <td>Brokerage</td>
+                                <td>₹20.00 / executed order (₹40 round-trip)</td>
+                                <td><span class="badge-pos">Exact Deduction</span></td>
+                                <td>Fixed Drag</td>
+                            </tr>
+                            <tr>
+                                <td>GST</td>
+                                <td>18.0% on (Brokerage + Exchange Charges)</td>
+                                <td><span class="badge-pos">Exact Deduction</span></td>
+                                <td>Statutory</td>
+                            </tr>
+                            <tr>
+                                <td>SEBI Turnover Charges</td>
+                                <td>₹10 per crore (0.0001%)</td>
+                                <td><span class="badge-pos">Exact Deduction</span></td>
+                                <td>Statutory</td>
+                            </tr>
+                            <tr>
+                                <td>Stamp Duty</td>
+                                <td>0.003% on Buy Turnover</td>
+                                <td><span class="badge-pos">Exact Deduction</span></td>
+                                <td>Statutory</td>
+                            </tr>
+                            <tr>
+                                <td>Market Slippage</td>
+                                <td>0.40% adverse fill on entry & exit</td>
+                                <td><span class="badge-pos">Realistic Microstructure</span></td>
+                                <td>Execution Friction</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Notification Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

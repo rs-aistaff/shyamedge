@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: shyamedge_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: shyam_user
+      POSTGRES_PASSWORD: shyam_password
+      POSTGRES_DB: shyam_edge
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shyam_user -d shyam_edge"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: shyamedge_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build: .
+    container_name: shyamedge_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - APP_MODE=PAPER
+      - DATABASE_URL=postgresql+psycopg2://shyam_user:shyam_password@postgres:5432/shyam_edge
+      - REDIS_URL=redis://redis:6379/0
+      - USE_REDIS=true
+    ports:
+      - "8000:8000"
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+
+  dashboard:
+    build: .
+    container_name: shyamedge_dashboard
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://shyam_user:shyam_password@postgres:5432/shyam_edge
+    ports:
+      - "8501:8501"
+    command: streamlit run dashboard/app.py --server.port 8501 --server.address 0.0.0.0
+
+volumes:
+  postgres_data:
+  redis_data:
